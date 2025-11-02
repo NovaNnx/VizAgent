@@ -1,33 +1,25 @@
+# app.py (streamlit)
+
 import streamlit as st
-import pandas as pd
+from core import Agent, create_client
 
-from agent_core import Agent  # your existing class
-from agent_core import run_python_chart  # if defined separately
+api_key = st.secrets["HF_TOKEN"]   # or st.text_input(...)
+client = create_client(api_key)
 
-st.set_page_config(page_title="AI Data Viz Agent", layout="wide")
-st.title("🧠📊 AI Data Visualization Agent")
+agent = Agent(client)
 
-st.sidebar.header("Upload CSV")
-uploaded_file = st.sidebar.file_uploader("Upload a CSV file", type=["csv"])
+uploaded = st.file_uploader("Upload CSV")
+if uploaded:
+    import pandas as pd
+    df = pd.read_csv(uploaded)
 
-question = st.text_area("Ask a question about your dataset", placeholder="e.g. Compare number of completed vs cancelled rides")
+    question = st.text_input("Ask something about the data:")
+    if question:
+        result = agent.answer(question, {"data": df})
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    st.write("### Preview of uploaded data:")
-    st.dataframe(df.head())
-
-    if st.button("Generate Chart"):
-        agent = Agent()  # or pass model name
-        out = agent.answer(question, {"data": df}, prefer="plotly")
-        if out.ok:
-            st.success(out.result.explanation)
-            if out.result.kind == "plotly":
-                st.plotly_chart(out.result.obj, use_container_width=True)
-            elif out.result.kind == "matplotlib":
-                st.pyplot(out.result.obj)
-            elif out.result.kind == "altair":
-                st.altair_chart(out.result.obj, use_container_width=True)
+        if result.kind == "plotly":
+            st.plotly_chart(result.obj)
+        elif result.kind == "matplotlib":
+            st.pyplot(result.obj)
         else:
-            st.error("Agent failed to generate a chart.")
-            st.exception(out.error)
+            st.altair_chart(result.obj)
