@@ -1,0 +1,10 @@
+streamlit
+python
+huggingface_hub
+numpy
+pandas
+duckdb
+altair
+matplotlib
+plotly
+requests
