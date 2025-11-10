@@ -1,23 +1,24 @@
-# vibrant_app.py
+
 
 import streamlit as st
-from AgentClass import Agent, create_client
 import pandas as pd
 import io
+from AgentClass import Agent, create_client
 
 # --- Page Setup ---
 st.set_page_config(page_title="🔍 AI DataViz Agent", layout="wide", page_icon="📊")
 st.title("📊 AI-Powered Data Visualization Agent")
 st.markdown(
     """
-    Upload a **CSV or Excel** dataset and ask natural-language questions like:
-    
-    - "Show a 3D scatter plot of Age, BMI, and Overall_Risk_Score colored by Cancer_Type."
-    - "Create a stacked area chart showing how the number of Movies and TV Shows released each year has changed since 2000, and color it by type."
-    - "Count number of rides by Booking Status and show as pie chart."
-    """
+Upload a **CSV or Excel** dataset and ask natural-language questions like:
+
+- "Show a 3D scatter plot of Age, BMI, and Overall_Risk_Score colored by Cancer_Type."
+- "Create a stacked area chart showing how the number of Movies and TV Shows released each year has changed since 2000, and color it by type."
+- "Count number of rides by Booking Status and show as pie chart."
+"""
 )
-# --- Sample datasets ---
+
+# --- Sample Datasets ---
 @st.cache_data
 def load_sample_data():
     cancer_df = pd.read_csv("cancer-risk-factors.csv")
@@ -25,15 +26,15 @@ def load_sample_data():
     uber_df = pd.read_csv("ncr_ride_bookings.csv")
     return {
         "Cancer risk factors": cancer_df,
-        "Netflix title": netflix_df,
-        "Uber Bookings" : uber_df,
+        "Netflix titles": netflix_df,
+        "Uber bookings": uber_df,
     }
 
 samples = load_sample_data()
 sample_names = list(samples.keys())
+sample_choice = st.selectbox("🎯 Or try a sample dataset:", ["None"] + sample_names)
 
-sample_choice = st.selectbox("Or try a sample dataset:", ["None"] + sample_names)
-# --- Sidebar ---
+# --- Sidebar Controls ---
 with st.sidebar:
     st.header("⚙️ Controls")
     if st.button("🧹 Clear chat history"):
@@ -52,10 +53,8 @@ st.markdown("### 📎 Upload Your Dataset")
 uploaded = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
 
 df = None
-
 if uploaded:
     try:
-        # Load uploaded file
         file_bytes = uploaded.read()
         file_io = io.BytesIO(file_bytes)
 
@@ -65,52 +64,58 @@ if uploaded:
         elif uploaded.name.endswith(".xlsx"):
             file_io.seek(0)
             df = pd.read_excel(file_io, engine="openpyxl")
+
+        st.success(f"✅ Uploaded: `{uploaded.name}` — {df.shape[0]} rows × {df.shape[1]} columns")
+
     except Exception as e:
-        st.error(f"❌ Failed to load uploaded file: {e}")
+        st.error(f"❌ Failed to load file: {e}")
 
 elif sample_choice != "None":
     df = samples[sample_choice]
     st.success(f"✅ Loaded sample dataset: {sample_choice}")
 
+# --- Main Interaction ---
 if df is not None:
     st.dataframe(df.head(), use_container_width=True)
 
     question = st.text_input("💬 Ask something about the data:")
+
     if question:
         with st.spinner("🧠 Thinking..."):
-            result = agent.answer(question, {"data": df})
-        
-        st.subheader("📈 Result")
+            try:
+                result = agent.answer(question, {"data": df})
 
-        if result.kind == "plotly":
-            st.plotly_chart(result.obj, use_container_width=True)
-        elif result.kind == "matplotlib":
-            st.pyplot(result.obj)
-        elif result.kind == "altair":
-            st.altair_chart(result.obj, use_container_width=True)
+                st.subheader("📈 Result")
+                if result.kind == "plotly":
+                    st.plotly_chart(result.obj, use_container_width=True, key=f"plotly-current")
+                elif result.kind == "matplotlib":
+                    st.pyplot(result.obj, clear_figure=True)
+                elif result.kind == "altair":
+                    st.altair_chart(result.obj, use_container_width=True)
 
-        st.success("✅ Chart generated successfully!")
-        st.session_state.chat_history.append({
-                "q": question,
-                "a": result.explanation,
-                "kind": result.kind,
-                "chart": result.obj
-            })
+                st.success("✅ Chart generated successfully!")
+                st.session_state.chat_history.append({
+                    "q": question,
+                    "a": result.explanation,
+                    "kind": result.kind,
+                    "chart": result.obj,
+                })
 
-        # --- History ---
-        if st.session_state.chat_history:
-            st.markdown("### 🕘 Previous Queries")
-            for i, entry in enumerate(reversed(st.session_state.chat_history), 1):
-                with st.expander(f"{i}. {entry['q']}"):
-                    st.markdown(f"**Explanation:** {entry['a']}")
-                    if entry["kind"] == "plotly":
-                        st.plotly_chart(entry["chart"], use_container_width=True, key=f"plotly-{i}")
-                    elif entry["kind"] == "matplotlib":
-                        st.pyplot(entry["chart"], key=f"matplotlib-{i}")
-                    elif entry["kind"] == "altair":
-                        st.altair_chart(entry["chart"], use_container_width=True, key=f"altair-{i}")
+            except Exception as e:
+                st.error(f"❌ Failed to generate chart: {e}")
 
-    except Exception as e:
-        st.error(f"❌ Failed to load or process file: `{e}`")
+    # --- History Section ---
+    if st.session_state.chat_history:
+        st.markdown("### 🕘 Previous Queries")
+        for i, entry in enumerate(reversed(st.session_state.chat_history), 1):
+            with st.expander(f"{i}. {entry['q']}"):
+                st.markdown(f"**Explanation:** {entry['a']}")
+                if entry["kind"] == "plotly":
+                    st.plotly_chart(entry["chart"], use_container_width=True, key=f"plotly-{i}")
+                elif entry["kind"] == "matplotlib":
+                    st.pyplot(entry["chart"], clear_figure=True)
+                elif entry["kind"] == "altair":
+                    st.altair_chart(entry["chart"], use_container_width=True, key=f"altair-{i}")
+
 else:
-    st.info("👆 Upload a `.csv` or `.xlsx` file to begin.")
+    st.info("👆 Upload a `.csv` or `.xlsx` file OR select a sample dataset above.")
