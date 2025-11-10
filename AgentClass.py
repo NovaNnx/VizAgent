@@ -189,8 +189,6 @@ def run_python_chart(code: str, datasets: Dict[str, Any]):
             "as_altair": as_altair,
             "normalize_str_series": normalize_str_series,
             "sql": sql,
-            "_QueryResultWrapper": _QueryResultWrapper,  # <-- optionally expose this
-            "unwrap": lambda x: x.df if isinstance(x, _QueryResultWrapper) else x,
 
         }
 
