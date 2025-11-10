@@ -51,8 +51,11 @@ if "chat_history" not in st.session_state:
 st.markdown("### 📎 Upload Your Dataset")
 uploaded = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
 
+df = None
+
 if uploaded:
     try:
+        # Load uploaded file
         file_bytes = uploaded.read()
         file_io = io.BytesIO(file_bytes)
 
@@ -62,10 +65,12 @@ if uploaded:
         elif uploaded.name.endswith(".xlsx"):
             file_io.seek(0)
             df = pd.read_excel(file_io, engine="openpyxl")
+    except Exception as e:
+        st.error(f"❌ Failed to load uploaded file: {e}")
 
-        st.success(f"✅ Loaded `{uploaded.name}` — {df.shape[0]} rows × {df.shape[1]} columns")
-        with st.expander("📄 Preview Data"):
-            st.dataframe(df.head(), use_container_width=True)
+elif sample_choice != "None":
+    df = samples[sample_choice]
+    st.success(f"✅ Loaded sample dataset: {sample_choice}")
 
         # --- Ask a Question ---
         st.markdown("### 💬 Ask a Question")
