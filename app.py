@@ -27,7 +27,8 @@ if uploaded:
         if uploaded.name.endswith(".csv"):
             df = pd.read_csv(uploaded)
         elif uploaded.name.endswith(".xlsx"):
-            df = pd.read_excel(uploaded)
+            df = pd.read_excel(uploaded, engine="openpyxl")
+
 
         st.success(f"✅ Loaded: {df.shape[0]} rows × {df.shape[1]} columns")
         st.dataframe(df.head(), use_container_width=True)
@@ -61,12 +62,12 @@ if uploaded:
                 with st.expander(f"{i}. {entry['q']}"):
                     st.markdown(f"**Explanation:** {entry['a']}")
                     if entry["kind"] == "plotly":
-                        st.plotly_chart(entry["chart"], use_container_width=True)
+                        st.plotly_chart(entry["chart"], use_container_width=True, key=f"plotly-{i}")
                     elif entry["kind"] == "matplotlib":
-                        st.pyplot(entry["chart"])
+                        st.pyplot(entry["chart"], key=f"matplotlib-{i}")
                     elif entry["kind"] == "altair":
-                        st.altair_chart(entry["chart"], use_container_width=True)
-
+                        st.altair_chart(entry["chart"], use_container_width=True, key=f"altair-{i}")
+            
     except Exception as e:
         st.error(f"❌ Failed to load or process file: {e}")
 
