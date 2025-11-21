@@ -1,24 +1,28 @@
-
-
 import streamlit as st
 import pandas as pd
 import io
 from AgentClass import Agent, create_client
 
-# --- Page Setup ---
-st.set_page_config(page_title="🔍 AI DataViz Agent", layout="wide", page_icon="📊")
+#  PAGE CONFIG 
+st.set_page_config(
+    page_title="🔍 AI DataViz Agent",
+    layout="wide",
+    page_icon="📊"
+)
+
 st.title("📊 AI-Powered Data Visualization Agent")
 st.markdown(
     """
 Upload a **CSV or Excel** dataset and ask natural-language questions like:
 
 - "Show a 3D scatter plot of Age, BMI, and Overall_Risk_Score colored by Cancer_Type."
-- "Create a stacked area chart showing how the number of Movies and TV Shows released each year has changed since 2000, and color it by type."
-- "Count number of rides by Booking Status and show as pie chart."
+- "Create a stacked area chart showing Movies and TV Shows released each year."
+- "Count number of rides by Booking Status and show as a pie chart."
+
 """
 )
 
-# --- Sample Datasets ---
+# SAMPLE DATASETS
 @st.cache_data
 def load_sample_data():
     cancer_df = pd.read_csv("cancer-risk-factors.csv")
@@ -32,27 +36,40 @@ def load_sample_data():
 
 samples = load_sample_data()
 sample_names = list(samples.keys())
-sample_choice = st.selectbox("🎯 Or try a sample dataset:", ["None"] + sample_names)
+sample_choice = st.selectbox("🎯 Try a sample dataset:", ["None"] + sample_names)
 
-# --- Sidebar Controls ---
+# SIDEBAR CONTROLS
 with st.sidebar:
     st.header("⚙️ Controls")
-    if st.button("🧹 Clear chat history"):
-        st.session_state.chat_history = []
 
-# --- Agent Setup ---
+    if st.button("🧹 Clear Conversation"):
+        st.session_state.chat_messages = []
+        if "agent" in st.session_state:
+            st.session_state.agent.history = []
+        st.rerun()
+
+    st.markdown("---")
+    st.subheader("🧠 Memory Panel")
+    if "agent" in st.session_state and st.session_state.agent.history:
+        for item in st.session_state.agent.history[-4:]:
+            st.write(f"**{item['role'].capitalize()}**: {item['content']}")
+
+# AGENT INIT
 api_key = st.secrets["HF_key"]
 client = create_client(api_key)
-agent = Agent(client)
 
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+if "agent" not in st.session_state:
+    st.session_state.agent = Agent(client)
 
-# --- File Upload ---
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = []
+
+# FILE UPLOAD 
 st.markdown("### 📎 Upload Your Dataset")
 uploaded = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
 
 df = None
+
 if uploaded:
     try:
         file_bytes = uploaded.read()
@@ -61,11 +78,11 @@ if uploaded:
         if uploaded.name.endswith(".csv"):
             file_io.seek(0)
             df = pd.read_csv(file_io)
-        elif uploaded.name.endswith(".xlsx"):
+        else:
             file_io.seek(0)
             df = pd.read_excel(file_io, engine="openpyxl")
 
-        st.success(f"✅ Uploaded: `{uploaded.name}` — {df.shape[0]} rows × {df.shape[1]} columns")
+        st.success(f"✅ Uploaded `{uploaded.name}` — {df.shape[0]} rows × {df.shape[1]} columns")
 
     except Exception as e:
         st.error(f"❌ Failed to load file: {e}")
@@ -74,48 +91,48 @@ elif sample_choice != "None":
     df = samples[sample_choice]
     st.success(f"✅ Loaded sample dataset: {sample_choice}")
 
-# --- Main Interaction ---
-if df is not None:
+#  MAIN CHAT UI 
+if df is None:
+    st.info("👆 Upload a `.csv` or `.xlsx` file OR use a sample dataset.")
+else:
     st.dataframe(df.head(), use_container_width=True)
 
-    question = st.text_input("💬 Ask something about the data:")
+    st.markdown("### 💬 Ask a question")
 
-    if question:
+    # Display existing messages (chat bubbles)
+    for msg in st.session_state.chat_messages:
+        if msg["role"] == "user":
+            st.chat_message("user").markdown(msg["content"])
+        else:
+            block = st.chat_message("assistant")
+            block.markdown(msg["content"])
+            if "chart" in msg:
+                st.write(msg["chart"])
+
+    # Chat input box
+    prompt = st.chat_input("Ask something about the data...")
+
+    if prompt:
+        # Show user message
+        st.session_state.chat_messages.append({"role": "user", "content": prompt})
+        st.chat_message("user").markdown(prompt)
+
+        # Run agent
         with st.spinner("🧠 Thinking..."):
             try:
-                result = agent.answer(question, {"data": df})
+                result = st.session_state.agent.answer(prompt, {"data": df})
 
-                st.subheader("📈 Result")
-                if result.kind == "plotly":
-                    st.plotly_chart(result.obj, use_container_width=True, key=f"plotly-current")
-                elif result.kind == "matplotlib":
-                    st.pyplot(result.obj, clear_figure=True)
-                elif result.kind == "altair":
-                    st.altair_chart(result.obj, use_container_width=True)
-
-                st.success("✅ Chart generated successfully!")
-                st.session_state.chat_history.append({
-                    "q": question,
-                    "a": result.explanation,
-                    "kind": result.kind,
-                    "chart": result.obj,
+                # Save to UI chat
+                st.session_state.chat_messages.append({
+                    "role": "assistant",
+                    "content": result.explanation,
+                    "chart": result.obj
                 })
 
+                # Display result
+                block = st.chat_message("assistant")
+                block.markdown(result.explanation)
+                st.write(result.obj)
+
             except Exception as e:
-                st.error(f"❌ Failed to generate chart: {e}")
-
-    # --- History Section ---
-    if st.session_state.chat_history:
-        st.markdown("### 🕘 Previous Queries")
-        for i, entry in enumerate(reversed(st.session_state.chat_history), 1):
-            with st.expander(f"{i}. {entry['q']}"):
-                st.markdown(f"**Explanation:** {entry['a']}")
-                if entry["kind"] == "plotly":
-                    st.plotly_chart(entry["chart"], use_container_width=True, key=f"plotly-{i}")
-                elif entry["kind"] == "matplotlib":
-                    st.pyplot(entry["chart"], clear_figure=True)
-                elif entry["kind"] == "altair":
-                    st.altair_chart(entry["chart"], use_container_width=True, key=f"altair-{i}")
-
-else:
-    st.info("👆 Upload a `.csv` or `.xlsx` file OR select a sample dataset above.")
+                st.error(f"❌ Error: {e}")
