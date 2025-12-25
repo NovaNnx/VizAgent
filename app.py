@@ -3,7 +3,6 @@ import pandas as pd
 import io
 from AgentClass import Agent, create_client
 
-#  PAGE CONFIG 
 st.set_page_config(
     page_title="🔍 AI DataViz Agent",
     layout="wide",
@@ -22,7 +21,6 @@ Upload a **CSV or Excel** dataset and ask natural-language questions like:
 """
 )
 
-# SAMPLE DATASETS
 @st.cache_data
 def load_sample_data():
     cancer_df = pd.read_csv("cancer-risk-factors.csv")
@@ -36,9 +34,9 @@ def load_sample_data():
 
 samples = load_sample_data()
 sample_names = list(samples.keys())
-sample_choice = st.selectbox("🎯 Try a sample dataset:", ["None"] + sample_names)
+sample_choice = st.selectbox(" Try a sample dataset:", ["None"] + sample_names)
 
-# SIDEBAR CONTROLS
+#side bar
 with st.sidebar:
     st.header("⚙️ Controls")
 
@@ -54,7 +52,7 @@ with st.sidebar:
         for item in st.session_state.agent.history[-4:]:
             st.write(f"**{item['role'].capitalize()}**: {item['content']}")
 
-# AGENT INIT
+# agent connection
 api_key = st.secrets["HF_key"]
 client = create_client(api_key)
 
@@ -64,7 +62,7 @@ if "agent" not in st.session_state:
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = []
 
-# FILE UPLOAD 
+# files upload 
 st.markdown("### 📎 Upload Your Dataset")
 uploaded = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
 
@@ -82,24 +80,24 @@ if uploaded:
             file_io.seek(0)
             df = pd.read_excel(file_io, engine="openpyxl")
 
-        st.success(f"✅ Uploaded `{uploaded.name}` — {df.shape[0]} rows × {df.shape[1]} columns")
+        st.success(f" Uploaded `{uploaded.name}` — {df.shape[0]} rows × {df.shape[1]} columns")
 
     except Exception as e:
-        st.error(f"❌ Failed to load file: {e}")
+        st.error(f" Failed to load file: {e}")
 
 elif sample_choice != "None":
     df = samples[sample_choice]
-    st.success(f"✅ Loaded sample dataset: {sample_choice}")
+    st.success(f" Loaded sample dataset: {sample_choice}")
 
-#  MAIN CHAT UI 
+#  user interface 
 if df is None:
-    st.info("👆 Upload a `.csv` or `.xlsx` file OR use a sample dataset.")
+    st.info(" Upload a `.csv` or `.xlsx` file OR use a sample dataset.")
 else:
     st.dataframe(df.head(), use_container_width=True)
 
     st.markdown("### 💬 Ask a question")
 
-    # Display existing messages (chat bubbles)
+    # exisitng msgs
     for msg in st.session_state.chat_messages:
         if msg["role"] == "user":
             st.chat_message("user").markdown(msg["content"])
@@ -109,11 +107,10 @@ else:
             if "chart" in msg:
                 st.write(msg["chart"])
 
-    # Chat input box
+    # input box
     prompt = st.chat_input("Ask something about the data...")
 
     if prompt:
-        # Show user message
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         st.chat_message("user").markdown(prompt)
 
@@ -129,10 +126,10 @@ else:
                     "chart": result.obj
                 })
 
-                # Display result
+                # display result
                 block = st.chat_message("assistant")
                 block.markdown(result.explanation)
                 st.write(result.obj)
 
             except Exception as e:
-                st.error(f"❌ Error: {e}")
+                st.error(f" Error: {e}")
